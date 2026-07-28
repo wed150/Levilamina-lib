@@ -1,4 +1,4 @@
-name: Sync Release from Repo A
+name: sync-release
 on:
   schedule:
     - cron: '*/10 * * * *'
