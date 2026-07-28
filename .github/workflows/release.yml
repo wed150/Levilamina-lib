@@ -49,6 +49,10 @@ jobs:
         working-directory: upstream
 
       - run: |
+          xmake -v -y
+        working-directory: upstream
+
+      - run: |
           xmake install -o ./sdk
         working-directory: upstream
 
