@@ -91,3 +91,57 @@ jobs:
           tag_name: ${{ github.event.release.tag_name }}
           files: |
             levilamina-sdk-${{ github.event.release.tag_name }}-${{ matrix.target_type }}-${{ matrix.mode }}-windows-x64.zip
+
+
+  report-to-xmake-repo:
+    needs: upload-to-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compute sha256
+        id: sha
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${VERSION}/levilamina-${VERSION}-release-server-windows-x64.zip"
+          
+          curl -L -o sdk.zip "$DOWNLOAD_URL"
+          SHA256=$(sha256sum sdk.zip | cut -d' ' -f1)
+          
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
+          echo "Canonical zip SHA256: $SHA256"
+
+      - name: Checkout xmake-repo
+        uses: actions/checkout@v7
+        with:
+          repository: wed150/xmake-repo
+          path: xmake-repo
+          token: ${{ secrets.MYTOKEN }}
+          fetch-depth: 0
+
+      - name: Add entry to prebuilt_versions.txt
+        working-directory: xmake-repo
+        run: |
+          VERSION="${{ steps.sha.outputs.version }}"
+          SHA256="${{ steps.sha.outputs.sha256 }}"
+          PREBUILT_FILE="packages/l/levilamina/versions/prebuilt_versions.txt"
+          
+          mkdir -p "$(dirname "$PREBUILT_FILE")"
+          
+          if grep -q "^$VERSION " "$PREBUILT_FILE" 2>/dev/null; then
+            echo "Version $VERSION already exists in prebuilt_versions.txt, skipping"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "$VERSION $SHA256" >> "$PREBUILT_FILE"
+            echo "Added $VERSION $SHA256"
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit and push as real user
+        if: steps.sha.outputs.exists != 'true'
+        working-directory: xmake-repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add packages/l/levilamina/versions/prebuilt_versions.txt
+          git commit -m "feat: add prebuilt sha for v${{ steps.sha.outputs.version }}"
+          git push https://${{ secrets.PAT_WITH_USER_IDENTITY }}@github.com/wed150/xmake-repo.git
