@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Get upstream latest release tag
+      - name: Get Levilamina latest release
         id: upstream
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -27,7 +27,7 @@ jobs:
           TAG=$(gh release view --repo "$UPSTREAM" --json tagName -q .tagName)
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
-      - name: Load last synced tag
+      - name: Load last tag
         id: state
         run: |
           if [ -f "$STATE_FILE" ]; then
@@ -37,7 +37,7 @@ jobs:
           fi
           echo "last=$LAST" >> "$GITHUB_OUTPUT"
 
-      - name: Create release in B if new
+      - name: Create release
         if: steps.upstream.outputs.tag != '' && steps.upstream.outputs.tag != steps.state.outputs.last
         env:
           GH_TOKEN: ${{ secrets.MYTOKEN }}

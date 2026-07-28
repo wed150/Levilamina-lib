@@ -23,7 +23,7 @@ jobs:
           - release
     runs-on: windows-latest
     steps:
-      - name: Clone upstream repo at release tag
+      - name: Clone repo at release tag
         run: |
           git clone ${{ env.UPSTREAM_URL }} upstream
           cd upstream
