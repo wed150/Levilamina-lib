@@ -137,7 +137,6 @@ jobs:
               SHA256=$(sha256sum sdk.zip | cut -d' ' -f1)
               rm -f sdk.zip
       
-              # 已存在则跳过
               if grep -q "^${KEY} " "$PREBUILT_FILE" 2>/dev/null; then
                 echo "Entry $KEY already exists, skipping"
                 continue
@@ -148,16 +147,14 @@ jobs:
             done
           done
       
-          # 把本次新增的条目一次性追加
           if [ -s "$TMPFILE" ]; then
             cat "$TMPFILE" >> "$PREBUILT_FILE"
             echo "=== New entries added ==="
             cat "$TMPFILE"
             rm -f "$TMPFILE"
       
-            # 只 commit + push 一次
-            git config user.name "你的名字"
-            git config user.email "你的邮箱"
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
             git add "$PREBUILT_FILE"
             git commit -m "feat(levilamina-lib): add prebuilt sha for ${numVERSION}"
             git push https://${TOKEN}@github.com/wed150/xmake-repo.git
