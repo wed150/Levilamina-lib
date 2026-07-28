@@ -121,18 +121,20 @@ jobs:
       - name: Add entry to prebuilt_versions.txt
         working-directory: xmake-repo
         run: |
+          
           VERSION="${{ steps.sha.outputs.version }}"
+          numVERSION="${VERSION#v}"
           SHA256="${{ steps.sha.outputs.sha256 }}"
-          PREBUILT_FILE="packages/l/levilamina/versions/prebuilt_versions.txt"
+          PREBUILT_FILE="packages/l/levilamina-lib/versions/prebuilt_versions.txt"
           
           mkdir -p "$(dirname "$PREBUILT_FILE")"
           
-          if grep -q "^$VERSION " "$PREBUILT_FILE" 2>/dev/null; then
+          if grep -q "^$numVERSION " "$PREBUILT_FILE" 2>/dev/null; then
             echo "Version $VERSION already exists in prebuilt_versions.txt, skipping"
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
-            echo "$VERSION $SHA256" >> "$PREBUILT_FILE"
-            echo "Added $VERSION $SHA256"
+            echo "$numVERSION $SHA256" >> "$PREBUILT_FILE"
+            echo "Added $numVERSION $SHA256"
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
@@ -143,5 +145,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add packages/l/levilamina/versions/prebuilt_versions.txt
-          git commit -m "feat: add prebuilt sha for v${{ steps.sha.outputs.version }}"
-          git push https://${{ secrets.PAT_WITH_USER_IDENTITY }}@github.com/wed150/xmake-repo.git
+          git commit -m "feat: add prebuilt sha for ${{ steps.sha.outputs.version }}"
+          git push https://${{ secrets.MYTOKEN }}@github.com/wed150/xmake-repo.git
