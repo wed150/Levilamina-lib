@@ -40,7 +40,7 @@ jobs:
       - name: Create release in B if new
         if: steps.upstream.outputs.tag != '' && steps.upstream.outputs.tag != steps.state.outputs.last
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.MYTOKEN }}
           TAG: ${{ steps.upstream.outputs.tag }}
           UPSTREAM: ${{ env.UPSTREAM }}
         run: |
@@ -62,8 +62,8 @@ jobs:
       - name: Commit state file
         if: steps.upstream.outputs.tag != '' && steps.upstream.outputs.tag != steps.state.outputs.last
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "wed150"
+          git config user.email "wed150@users.noreply.github.com"
           git add "$STATE_FILE"
           git commit -m "chore: sync release state to ${{ steps.upstream.outputs.tag }}" || true
           git push
