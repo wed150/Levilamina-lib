@@ -1,8 +1,7 @@
 on:
-  workflow_run:
-    workflows: ["sync-release"]  
-    types: [completed]
-
+  release:
+    types:
+      - published
 
 permissions:
   contents: write
@@ -50,41 +49,19 @@ jobs:
         working-directory: upstream
 
       - run: |
-          xmake package -o ./sdk
+          xmake install -o ./sdk
         working-directory: upstream
 
       - uses: actions/upload-artifact@v7
         with:
-          name: levilamina-${{ github.event.release.tag_name }}-${{ matrix.target_type }}-${{ matrix.mode }}-windows-x64
+          name: levilamina-sdk-${{ github.event.release.tag_name }}-${{ matrix.target_type }}-${{ matrix.mode }}-windows-x64
           path: upstream/sdk/
 
-  update-release-notes:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Get upstream release notes
-        id: upstream_notes
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          NOTES=$(gh release view ${{ github.event.release.tag_name }} --repo ${{ env.UPSTREAM }} --json body -q .body)
-          echo "notes<<EOF" >> "$GITHUB_OUTPUT"
-          echo "$NOTES" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
 
-      - uses: softprops/action-gh-release@v3
-        with:
-          tag_name: ${{ github.event.release.tag_name }}
-          body: |
-            Built from [${{ env.UPSTREAM }}@${{ github.event.release.tag_name }}](https://github.com/${{ env.UPSTREAM }}/releases/tag/${{ github.event.release.tag_name }})
-
-            ---
-
-            ${{ steps.upstream_notes.outputs.notes }}
 
   upload-to-release:
     needs:
       - build
-      - update-release-notes
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -97,19 +74,16 @@ jobs:
     steps:
       - uses: actions/download-artifact@v8
         with:
-          name: levilamina-${{ github.event.release.tag_name }}-${{ matrix.target_type }}-${{ matrix.mode }}-windows-x64
+          name: levilamina-sdk-${{ github.event.release.tag_name }}-${{ matrix.target_type }}-${{ matrix.mode }}-windows-x64
           path: artifact
 
       - run: |
-          cp CHANGELOG.md COPYING COPYING.LESSER README.md artifact/ 2>/dev/null || true
-
-      - run: |
           cd artifact
-          zip -r ../levilamina-${{ github.event.release.tag_name }}-${{ matrix.target_type }}-${{ matrix.mode }}-windows-x64.zip *
+          zip -r ../levilamina-sdk-${{ github.event.release.tag_name }}-${{ matrix.target_type }}-${{ matrix.mode }}-windows-x64.zip *
         shell: bash
 
       - uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.event.release.tag_name }}
           files: |
-            levilamina-${{ github.event.release.tag_name }}-${{ matrix.target_type }}-${{ matrix.mode }}-windows-x64.zip
+            levilamina-sdk-${{ github.event.release.tag_name }}-${{ matrix.target_type }}-${{ matrix.mode }}-windows-x64.zip
