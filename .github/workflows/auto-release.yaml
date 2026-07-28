@@ -1,0 +1,69 @@
+name: Sync Release from Repo A
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  UPSTREAM: LiteLDev/Levilamina
+  STATE_FILE: .release-cache/synced_tag.txt
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: sync-release
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get upstream latest release tag
+        id: upstream
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=$(gh release view --repo "$UPSTREAM" --json tagName -q .tagName)
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Load last synced tag
+        id: state
+        run: |
+          if [ -f "$STATE_FILE" ]; then
+            LAST=$(cat "$STATE_FILE")
+          else
+            LAST=""
+          fi
+          echo "last=$LAST" >> "$GITHUB_OUTPUT"
+
+      - name: Create release in B if new
+        if: steps.upstream.outputs.tag != '' && steps.upstream.outputs.tag != steps.state.outputs.last
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.upstream.outputs.tag }}
+          UPSTREAM: ${{ env.UPSTREAM }}
+        run: |
+          TITLE=$(gh release view "$TAG" --repo "$UPSTREAM" --json title -q .title)
+          BODY=$(gh release view "$TAG" --repo "$UPSTREAM" --json body -q .body)
+
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "B already has $TAG, skip"
+          else
+            gh release create "$TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "${TITLE:-$TAG}" \
+              --notes "${BODY:-Synced from $UPSTREAM}"
+          fi
+
+          mkdir -p "$(dirname "$STATE_FILE")"
+          echo "$TAG" > "$STATE_FILE"
+
+      - name: Commit state file
+        if: steps.upstream.outputs.tag != '' && steps.upstream.outputs.tag != steps.state.outputs.last
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "$STATE_FILE"
+          git commit -m "chore: sync release state to ${{ steps.upstream.outputs.tag }}" || true
+          git push
