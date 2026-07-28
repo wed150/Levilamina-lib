@@ -83,7 +83,7 @@ jobs:
 
       - run: |
           cd artifact
-          zip -r ../levilamina-sdk-${{ github.event.release.tag_name }}-${{ matrix.target_type }}-${{ matrix.mode }}-windows-x64.zip *
+          zip -1 -r ../levilamina-sdk-${{ github.event.release.tag_name }}-${{ matrix.target_type }}-${{ matrix.mode }}-windows-x64.zip *
         shell: bash
 
       - uses: softprops/action-gh-release@v3
