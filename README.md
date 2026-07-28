@@ -1,5 +1,7 @@
 # LevilaminaLib
 a pre-compiled Levilamina sdk
+
+不用担心本项目未更新导致编译错误,本项目会自动更新,并且就算有本项目未预编译的版本也会自动拉Levilamina仓库在本地编译
 ## Usage
 
 1. 正常创建 `LeviLamina` 模组项目。
