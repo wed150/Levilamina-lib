@@ -96,19 +96,37 @@ jobs:
   report-to-xmake-repo:
     needs: upload-to-release
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target_type:
+          - server
+          - client
+        mode:
+          - debug
+          - release
     steps:
       - name: Compute sha256
         id: sha
         run: |
           VERSION="${{ github.event.release.tag_name }}"
-          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${VERSION}/levilamina-${VERSION}-release-server-windows-x64.zip"
-          
+          numVERSION="${VERSION#v}"
+          TARGET="${{ matrix.target_type }}"
+          MODE="${{ matrix.mode }}"
+          FILENAME="levilamina-sdk-${VERSION}-${TARGET}-${MODE}-windows-x64.zip"
+          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${VERSION}/${FILENAME}"
+
+          echo "Downloading: $DOWNLOAD_URL"
           curl -L -o sdk.zip "$DOWNLOAD_URL"
           SHA256=$(sha256sum sdk.zip | cut -d' ' -f1)
-          
+
+          # 格式: 数字版本号-平台-模式-目标类型 sha256
+          ENTRY="${numVERSION}-windows-${MODE}-${TARGET} ${SHA256}"
+
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "entry=$ENTRY" >> "$GITHUB_OUTPUT"
           echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
-          echo "Canonical zip SHA256: $SHA256"
+          echo "Computed: $ENTRY"
 
       - name: Checkout xmake-repo
         uses: actions/checkout@v7
@@ -119,31 +137,30 @@ jobs:
           fetch-depth: 0
 
       - name: Add entry to prebuilt_versions.txt
+        id: check
         working-directory: xmake-repo
         run: |
-          
-          VERSION="${{ steps.sha.outputs.version }}"
-          numVERSION="${VERSION#v}"
-          SHA256="${{ steps.sha.outputs.sha256 }}"
+          ENTRY="${{ steps.sha.outputs.entry }}"
           PREBUILT_FILE="packages/l/levilamina-lib/versions/prebuilt_versions.txt"
-          
+
           mkdir -p "$(dirname "$PREBUILT_FILE")"
-          
-          if grep -q "^$numVERSION " "$PREBUILT_FILE" 2>/dev/null; then
-            echo "Version $VERSION already exists in prebuilt_versions.txt, skipping"
+
+          KEY=$(echo "$ENTRY" | cut -d' ' -f1)
+          if grep -q "^${KEY} " "$PREBUILT_FILE" 2>/dev/null; then
+            echo "Entry $KEY already exists in prebuilt_versions.txt, skipping"
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
-            echo "$numVERSION $SHA256" >> "$PREBUILT_FILE"
-            echo "Added $numVERSION $SHA256"
+            echo "$ENTRY" >> "$PREBUILT_FILE"
+            echo "Added: $ENTRY"
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Commit and push as real user
-        if: steps.sha.outputs.exists != 'true'
+        if: steps.check.outputs.exists != 'true'
         working-directory: xmake-repo
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add packages/l/levilamina-lib/versions/prebuilt_versions.txt
-          git commit -m "feat: add prebuilt sha for ${{ steps.sha.outputs.version }}"
+          git commit -m "feat: add prebuilt sha for ${{ steps.sha.outputs.entry }}"
           git push https://${{ secrets.MYTOKEN }}@github.com/wed150/xmake-repo.git
