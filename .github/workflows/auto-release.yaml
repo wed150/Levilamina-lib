@@ -44,7 +44,7 @@ jobs:
           TAG: ${{ steps.upstream.outputs.tag }}
           UPSTREAM: ${{ env.UPSTREAM }}
         run: |
-          TITLE=$(gh release view "$TAG" --repo "$UPSTREAM" --json title -q .title)
+          TITLE=$(gh release view "$TAG" --repo "$UPSTREAM" --json title -q .name)
           BODY=$(gh release view "$TAG" --repo "$UPSTREAM" --json body -q .body)
 
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
