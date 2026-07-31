@@ -100,7 +100,7 @@ jobs:
       - name: Checkout xmake-repo (target)
         uses: actions/checkout@v7
         with:
-          repository: wed150/xmake-repo
+          repository: GroupMountain/xmake-repo
           path: xmake-repo
           token: ${{ secrets.MYTOKEN }}
           fetch-depth: 0
@@ -180,7 +180,7 @@ jobs:
             echo "=== Committing ==="
             [ -s "$TMPFILE" ] && cat "$TMPFILE"
             git commit -m "feat(levilamina-lib): add prebuilt sha for ${numVERSION} & sync versions"
-            git push https://${TOKEN}@github.com/wed150/xmake-repo.git
+            git push https://${TOKEN}@github.com/GroupMountain/xmake-repo.git
             echo "=== Push done ==="
           fi
 
