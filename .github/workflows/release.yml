@@ -58,10 +58,76 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: levilamina-sdk-${{ github.event.release.tag_name }}-${{ matrix.target_type }}-${{ matrix.mode }}-windows-x64
-          path: upstream/sdk/
+          name: levilamina-lib-${{ github.event.release.tag_name }}-${{ matrix.target_type }}-${{ matrix.mode }}-windows-x64
+          path: |
+            upstream/sdk/lib/
+            upstream/sdk/bin/
 
 
+  upload-include:
+    needs:
+      - build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target_type:
+          - server
+          - client
+    steps:
+      - name: Checkout Levilamina-lib repo
+        uses: actions/checkout@v7
+        with:
+          token: ${{ secrets.MYTOKEN }}
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: levilamina-lib-${{ github.event.release.tag_name }}-${{ matrix.target_type }}-release-windows-x64
+          path: _artifact
+
+      - name: Commit include files to repo
+        env:
+          VERSION: ${{ github.event.release.tag_name }}
+          TOKEN: ${{ secrets.MYTOKEN }}
+        run: |
+          set -e
+          numVERSION="${VERSION#v}"
+          SRC="_artifact/include"
+          DST="include/${numVERSION}/${{ matrix.target_type }}"
+
+          echo "=== Source: $SRC ==="
+          echo "=== Dest:   $DST ==="
+
+          if [ ! -d "$SRC" ]; then
+            echo "ERROR: include not found at $SRC"
+            echo "--- _artifact contents ---"
+            find _artifact -maxdepth 3 -type d
+            exit 1
+          fi
+
+          mkdir -p "$DST"
+          rm -rf "$DST"/*
+          cp -r "$SRC"/. "$DST"/
+
+          FILE_COUNT=$(find "$DST" -type f | wc -l)
+          echo "=== Committed $FILE_COUNT header files ==="
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add "include/${numVERSION}/${{ matrix.target_type }}/"
+
+          if git diff --cached --quiet; then
+            echo "=== No include changes for ${{ matrix.target_type }} ==="
+          else
+            git commit -m "feat(include): add ${numVERSION} ${{ matrix.target_type }} headers"
+            git push https://${TOKEN}@github.com/wed150/Levilamina-lib.git
+            echo "=== Include pushed for ${{ matrix.target_type }} ==="
+          fi
+
+      - name: Cleanup
+        if: always()
+        run: rm -rf _artifact
 
   upload-to-release:
     needs:
@@ -78,25 +144,26 @@ jobs:
     steps:
       - uses: actions/download-artifact@v8
         with:
-          name: levilamina-sdk-${{ github.event.release.tag_name }}-${{ matrix.target_type }}-${{ matrix.mode }}-windows-x64
+          name: levilamina-lib-${{ github.event.release.tag_name }}-${{ matrix.target_type }}-${{ matrix.mode }}-windows-x64
           path: artifact
 
       - run: |
           cd artifact
-          zip -1 -r ../levilamina-sdk-${{ github.event.release.tag_name }}-${{ matrix.target_type }}-${{ matrix.mode }}-windows-x64.zip *
+          zip -1 -r ../levilamina-lib-${{ github.event.release.tag_name }}-${{ matrix.target_type }}-${{ matrix.mode }}-windows-x64.zip *
         shell: bash
 
       - uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.event.release.tag_name }}
           files: |
-            levilamina-sdk-${{ github.event.release.tag_name }}-${{ matrix.target_type }}-${{ matrix.mode }}-windows-x64.zip
+            levilamina-lib-${{ github.event.release.tag_name }}-${{ matrix.target_type }}-${{ matrix.mode }}-windows-x64.zip
 
   report-to-xmake-repo:
-    needs: upload-to-release
+    needs:
+      - upload-to-release
+      - upload-include
     runs-on: ubuntu-latest
     steps:
-      # 1) 检出你自己的 xmake-repo（用于提交）
       - name: Checkout xmake-repo (target)
         uses: actions/checkout@v7
         with:
@@ -105,7 +172,6 @@ jobs:
           token: ${{ secrets.MYTOKEN }}
           fetch-depth: 0
 
-      # 2) 检出上游 LiteLDev/xmake-repo（用于复制 versions）
       - name: Checkout upstream xmake-repo
         uses: actions/checkout@v7
         with:
@@ -119,7 +185,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Copy versions from upstream & compute sha256, then single commit
+      - name: Copy versions & compute sha256
         working-directory: xmake-repo
         env:
           VERSION: ${{ github.event.release.tag_name }}
@@ -127,7 +193,6 @@ jobs:
           TOKEN: ${{ secrets.MYTOKEN }}
         run: |
           set -e
-
           numVERSION="${VERSION#v}"
 
           SRC="../upstream-xmake-repo/packages/l/levilamina/versions"
@@ -142,24 +207,19 @@ jobs:
               cp "$f" "$DST/$bf"
               echo "Copied: $bf"
             done
-          else
-            echo "WARNING: upstream versions dir not found at $SRC"
           fi
 
-          # ===== B. 计算 prebuilt zip 的 sha256 =====
           PREBUILT_FILE="packages/l/levilamina-lib/versions/prebuilt_versions.txt"
           touch "$PREBUILT_FILE"
-
           TMPFILE=$(mktemp)
 
           for TARGET in server client; do
             for MODE in release debug; do
-              FILENAME="levilamina-sdk-${numVERSION}-${TARGET}-${MODE}-windows-x64.zip"
+              FILENAME="levilamina-lib-${numVERSION}-${TARGET}-${MODE}-windows-x64.zip"
               DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${VERSION}/${FILENAME}"
               KEY="${numVERSION}-windows-${MODE}-${TARGET}"
 
               echo "=== Processing ${KEY} ==="
-              echo "Downloading: $DOWNLOAD_URL"
               curl -L -o sdk.zip "$DOWNLOAD_URL"
               SHA256=$(sha256sum sdk.zip | cut -d' ' -f1)
               rm -f sdk.zip
@@ -176,23 +236,17 @@ jobs:
 
           git add packages/l/levilamina-lib/versions/
 
-          HAS_CHANGES=0
           if [ -s "$TMPFILE" ]; then
             cat "$TMPFILE" >> "$PREBUILT_FILE"
             git add "$PREBUILT_FILE"
-            HAS_CHANGES=1
           fi
 
-          # 检查是否有任何 staged 变更
           if git diff --cached --quiet; then
             echo "=== Nothing new to commit ==="
           else
-            echo "=== Committing all changes together ==="
-            if [ -s "$TMPFILE" ]; then
-              echo "--- New prebuilt entries ---"
-              cat "$TMPFILE"
-            fi
-            git commit -m "feat(levilamina-lib): add prebuilt sha for ${numVERSION} & sync versions from upstream"
+            echo "=== Committing ==="
+            [ -s "$TMPFILE" ] && cat "$TMPFILE"
+            git commit -m "feat(levilamina-lib): add prebuilt sha for ${numVERSION} & sync versions"
             git push https://${TOKEN}@github.com/wed150/xmake-repo.git
             echo "=== Push done ==="
           fi
@@ -200,4 +254,3 @@ jobs:
           rm -f "$TMPFILE"
           echo "=== Final prebuilt_versions.txt ==="
           cat "$PREBUILT_FILE"
-
