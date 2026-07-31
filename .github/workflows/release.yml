@@ -60,73 +60,8 @@ jobs:
         with:
           name: levilamina-lib-${{ github.event.release.tag_name }}-${{ matrix.target_type }}-${{ matrix.mode }}-windows-x64
           path: |
-            upstream/sdk/
-
-
-  upload-include:
-    needs:
-      - build
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        target_type:
-          - server
-          - client
-    steps:
-      - name: Checkout Levilamina-lib repo
-        uses: actions/checkout@v7
-        with:
-          token: ${{ secrets.MYTOKEN }}
-          fetch-depth: 0
-
-      - uses: actions/download-artifact@v8
-        with:
-          name: levilamina-lib-${{ github.event.release.tag_name }}-${{ matrix.target_type }}-release-windows-x64
-          path: _artifact
-
-      - name: Commit include files to repo
-        env:
-          VERSION: ${{ github.event.release.tag_name }}
-          TOKEN: ${{ secrets.MYTOKEN }}
-        run: |
-          set -e
-          numVERSION="${VERSION#v}"
-          SRC="_artifact/include"
-          DST="include/${numVERSION}/${{ matrix.target_type }}"
-
-          echo "=== Source: $SRC ==="
-          echo "=== Dest:   $DST ==="
-
-          if [ ! -d "$SRC" ]; then
-            echo "ERROR: include not found at $SRC"
-            echo "--- _artifact contents ---"
-            find _artifact -maxdepth 3 -type d
-            exit 1
-          fi
-
-          mkdir -p "$DST"
-          rm -rf "$DST"/*
-          cp -r "$SRC"/. "$DST"/
-
-          FILE_COUNT=$(find "$DST" -type f | wc -l)
-          echo "=== Committed $FILE_COUNT header files ==="
-
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          git add "include/${numVERSION}/${{ matrix.target_type }}/"
-
-          if git diff --cached --quiet; then
-            echo "=== No include changes for ${{ matrix.target_type }} ==="
-          else
-            git commit -m "feat(include): add ${numVERSION} ${{ matrix.target_type }} headers"
-            git push https://${TOKEN}@github.com/wed150/Levilamina-lib.git
-            echo "=== Include pushed for ${{ matrix.target_type }} ==="
-          fi
-
-      - name: Cleanup
-        if: always()
-        run: rm -rf _artifact
+            upstream/sdk/bin/
+            upstream/sdk/lib/
 
   upload-to-release:
     needs:
@@ -148,7 +83,6 @@ jobs:
 
       - run: |
           cd artifact
-          rm -rf include
           zip -1 -r ../levilamina-lib-${{ github.event.release.tag_name }}-${{ matrix.target_type }}-${{ matrix.mode }}-windows-x64.zip *
         shell: bash
 
@@ -161,7 +95,6 @@ jobs:
   report-to-xmake-repo:
     needs:
       - upload-to-release
-      - upload-include
     runs-on: ubuntu-latest
     steps:
       - name: Checkout xmake-repo (target)
