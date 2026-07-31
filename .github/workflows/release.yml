@@ -148,7 +148,7 @@ jobs:
 
           for TARGET in server client; do
             for MODE in release debug; do
-              FILENAME="levilamina-lib-${numVERSION}-${TARGET}-${MODE}-windows-x64.zip"
+              FILENAME="levilamina-lib-${VERSION}-${TARGET}-${MODE}-windows-x64.zip"
               DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${VERSION}/${FILENAME}"
               KEY="${numVERSION}-windows-${MODE}-${TARGET}"
 
