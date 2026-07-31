@@ -7,8 +7,8 @@ permissions:
   contents: write
 
 env:
-  UPSTREAM: LiteLDev/Levilamina
-  UPSTREAM_URL: https://github.com/LiteLDev/Levilamina.git
+  UPSTREAM: LiteLDev/LeviLamina
+  UPSTREAM_URL: https://github.com/LiteLDev/LeviLamina.git
 
 jobs:
   build:
@@ -41,27 +41,7 @@ jobs:
 
       - uses: microsoft/setup-msbuild@v3
 
-      - run: |
-          xmake repo -u
-
-      - run: |
-          xmake f -a x64 -m ${{ matrix.mode }} -p windows -v -y --target_type=${{ matrix.target_type }} --publish=y
-        working-directory: upstream
-
-      - run: |
-          xmake -v -y
-        working-directory: upstream
-
-      - run: |
-          xmake install -o ./sdk
-        working-directory: upstream
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: levilamina-sdk-${{ github.event.release.tag_name }}-${{ matrix.target_type }}-${{ matrix.mode }}-windows-x64
-          path: upstream/sdk/
-
-
+      # ... 你的 build / package / upload-artifact 步骤 ...
 
   upload-to-release:
     needs:
@@ -92,12 +72,12 @@ jobs:
           files: |
             levilamina-sdk-${{ github.event.release.tag_name }}-${{ matrix.target_type }}-${{ matrix.mode }}-windows-x64.zip
 
-
   report-to-xmake-repo:
     needs: upload-to-release
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout xmake-repo
+      # 1) 检出你自己的 xmake-repo（用于提交）
+      - name: Checkout xmake-repo (target)
         uses: actions/checkout@v7
         with:
           repository: wed150/xmake-repo
@@ -105,64 +85,99 @@ jobs:
           token: ${{ secrets.MYTOKEN }}
           fetch-depth: 0
 
+      # 2) 检出上游 LiteLDev/xmake-repo（用于复制 versions）
+      - name: Checkout upstream xmake-repo
+        uses: actions/checkout@v7
+        with:
+          repository: LiteLDev/xmake-repo
+          path: upstream-xmake-repo
+          fetch-depth: 1
+
       - name: Configure git
         working-directory: xmake-repo
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Compute sha256 and commit once
+      - name: Copy versions from upstream & compute sha256, then single commit
         working-directory: xmake-repo
         env:
           VERSION: ${{ github.event.release.tag_name }}
           REPO: ${{ github.repository }}
           TOKEN: ${{ secrets.MYTOKEN }}
         run: |
+          set -e
+
           numVERSION="${VERSION#v}"
+
+          SRC="../upstream-xmake-repo/packages/l/levilamina/versions"
+          DST="packages/l/levilamina-lib/versions"
+          mkdir -p "$DST"
+
+          echo "=== Copying versions from upstream ==="
+          if [ -d "$SRC" ]; then
+            for f in "$SRC"/*; do
+              [ -f "$f" ] || continue
+              bf=$(basename "$f")
+              cp "$f" "$DST/$bf"
+              echo "Copied: $bf"
+            done
+          else
+            echo "WARNING: upstream versions dir not found at $SRC"
+          fi
+
+          # ===== B. 计算 prebuilt zip 的 sha256 =====
           PREBUILT_FILE="packages/l/levilamina-lib/versions/prebuilt_versions.txt"
-          mkdir -p "$(dirname "$PREBUILT_FILE")"
           touch "$PREBUILT_FILE"
-      
+
           TMPFILE=$(mktemp)
-      
+
           for TARGET in server client; do
             for MODE in release debug; do
               FILENAME="levilamina-sdk-${numVERSION}-${TARGET}-${MODE}-windows-x64.zip"
               DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${VERSION}/${FILENAME}"
               KEY="${numVERSION}-windows-${MODE}-${TARGET}"
-      
+
               echo "=== Processing ${KEY} ==="
               echo "Downloading: $DOWNLOAD_URL"
               curl -L -o sdk.zip "$DOWNLOAD_URL"
               SHA256=$(sha256sum sdk.zip | cut -d' ' -f1)
               rm -f sdk.zip
-      
+
               if grep -q "^${KEY} " "$PREBUILT_FILE" 2>/dev/null; then
                 echo "Entry $KEY already exists, skipping"
                 continue
               fi
-      
+
               echo "${KEY} ${SHA256}" >> "$TMPFILE"
               echo "Queued: ${KEY} ${SHA256}"
             done
           done
-      
+
+          git add packages/l/levilamina-lib/versions/
+
+          HAS_CHANGES=0
           if [ -s "$TMPFILE" ]; then
             cat "$TMPFILE" >> "$PREBUILT_FILE"
-            echo "=== New entries added ==="
-            cat "$TMPFILE"
-            rm -f "$TMPFILE"
-      
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
             git add "$PREBUILT_FILE"
-            git commit -m "feat(levilamina-lib): add prebuilt sha for ${numVERSION}"
-            git push https://${TOKEN}@github.com/wed150/xmake-repo.git
-            echo "=== Pushed single commit ==="
-          else
-            echo "=== Nothing new to commit ==="
+            HAS_CHANGES=1
           fi
-      
-          echo "Final prebuilt_versions.txt contents:"
+
+          # 检查是否有任何 staged 变更
+          if git diff --cached --quiet; then
+            echo "=== Nothing new to commit ==="
+          else
+            echo "=== Committing all changes together ==="
+            if [ -s "$TMPFILE" ]; then
+              echo "--- New prebuilt entries ---"
+              cat "$TMPFILE"
+            fi
+            git commit -m "feat(levilamina-lib): add prebuilt sha for ${numVERSION} & sync versions from upstream"
+            git push https://${TOKEN}@github.com/wed150/xmake-repo.git
+            echo "=== Push done ==="
+          fi
+
+          rm -f "$TMPFILE"
+          echo "=== Final prebuilt_versions.txt ==="
           cat "$PREBUILT_FILE"
 
