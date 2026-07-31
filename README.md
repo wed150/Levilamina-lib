@@ -9,7 +9,7 @@ a pre-compiled Levilamina sdk
 ```lua
 ...
 在add_repositories("levimc-repo https://github.com/LiteLDev/xmake-repo.git")下方加入
-add_repositories("wed15-repo https://github.com/wed150/xmake-repo.git")
+add_repositories("groupmountain-repo https://github.com/GroupMountain/xmake-repo.git")
 ...
 add_requires("levilamina x.xx.xx",{.....})
 改成
@@ -22,4 +22,5 @@ target("xxxx") -- 找到你Mod的这段内容
     add_packages("levilamina-lib")
     ...
 ```
+3.执行xmake repo -u
 
