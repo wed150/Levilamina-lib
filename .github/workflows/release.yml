@@ -41,7 +41,27 @@ jobs:
 
       - uses: microsoft/setup-msbuild@v3
 
-      # ... 你的 build / package / upload-artifact 步骤 ...
+      - run: |
+          xmake repo -u
+
+      - run: |
+          xmake f -a x64 -m ${{ matrix.mode }} -p windows -v -y --target_type=${{ matrix.target_type }} --publish=y
+        working-directory: upstream
+
+      - run: |
+          xmake -v -y
+        working-directory: upstream
+
+      - run: |
+          xmake install -o ./sdk
+        working-directory: upstream
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: levilamina-sdk-${{ github.event.release.tag_name }}-${{ matrix.target_type }}-${{ matrix.mode }}-windows-x64
+          path: upstream/sdk/
+
+
 
   upload-to-release:
     needs:
