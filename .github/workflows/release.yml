@@ -60,8 +60,7 @@ jobs:
         with:
           name: levilamina-lib-${{ github.event.release.tag_name }}-${{ matrix.target_type }}-${{ matrix.mode }}-windows-x64
           path: |
-            upstream/sdk/lib/
-            upstream/sdk/bin/
+            upstream/sdk/
 
 
   upload-include:
@@ -149,6 +148,7 @@ jobs:
 
       - run: |
           cd artifact
+          rm -rf include
           zip -1 -r ../levilamina-lib-${{ github.event.release.tag_name }}-${{ matrix.target_type }}-${{ matrix.mode }}-windows-x64.zip *
         shell: bash
 
